@@ -1,0 +1,60 @@
+@import "tailwindcss";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-sans/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* A security-operations console: graphite surfaces, one signal colour, and decision colours used for nothing else. */
+  --color-bg: #0a0c0f;
+  --color-surface: #111418;
+  --color-surface-2: #161a1f;
+  --color-raised: #1b2027;
+  --color-line: #222830;
+  --color-line-2: #2d343e;
+  --color-fg: #e8eaed;
+  --color-fg-2: #b4bac3;
+  --color-muted: #7d8590;
+  --color-faint: #565e69;
+  --color-signal: #5b9bff;
+  --color-signal-2: #3d7ef0;
+  --color-approve: #3ecf8e;
+  --color-review: #f5b03d;
+  --color-block: #ff6363;
+
+  --radius-card: 12px;
+}
+
+html { scroll-behavior: smooth; color-scheme: dark; }
+body { @apply bg-bg text-fg antialiased; }
+::selection { background: rgb(91 155 255 / 0.35); }
+.num { font-variant-numeric: tabular-nums; }
+
+.prose-brief h3 { @apply mt-4 mb-1.5 text-[13px] font-semibold uppercase tracking-wider text-fg first:mt-0; }
+.prose-brief p { @apply mb-2 text-sm leading-relaxed text-fg-2; }
+.prose-brief ul { @apply mb-2 list-disc space-y-1 pl-5 text-sm text-fg-2 marker:text-faint; }
+.prose-brief ol { @apply mb-2 list-decimal space-y-1 pl-5 text-sm text-fg-2 marker:text-faint; }
+.prose-brief strong { @apply font-semibold text-fg; }
+.prose-brief em { @apply text-muted; }
+.prose-brief code { @apply rounded bg-raised px-1 py-0.5 font-mono text-xs text-fg; }
+
+@keyframes flash { from { background-color: rgb(91 155 255 / 0.12); } to { background-color: transparent; } }
+.row-new { animation: flash 1.4s ease-out; }
+
+.input {
+  @apply mt-1.5 w-full rounded-lg border border-line-2 bg-surface-2 px-3 py-2 text-sm text-fg outline-none transition;
+  @apply placeholder:text-faint focus:border-signal focus:ring-4 focus:ring-signal/15;
+}
+.focus-ring { @apply outline-none focus-visible:ring-4 focus-visible:ring-signal/25; }
+.skeleton { @apply animate-pulse rounded-md bg-raised; }
+select { @apply bg-surface-2; }
+input[type="range"] { accent-color: var(--color-signal); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #2d343e; border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } .row-new { animation: none } }

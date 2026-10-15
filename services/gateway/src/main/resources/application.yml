@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # Each route has exactly one rate limiter. (Stacking a global default-filter limiter on
+          # top of a route's own limiter makes both share one Redis bucket with conflicting settings.)
+          routes:
+            # LLM calls cost money: a much tighter token bucket than the rest of the API.
+            - id: copilot
+              uri: ${CASE_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/copilot/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 1
+                    redis-rate-limiter.burstCapacity: 5
+            - id: txn-service
+              uri: ${TXN_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/payments/**,/api/simulator/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 100
+                    redis-rate-limiter.burstCapacity: 200
+            - id: risk-engine
+              uri: ${RISK_ENGINE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/risk/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 100
+                    redis-rate-limiter.burstCapacity: 200
+            - id: case-service
+              uri: ${CASE_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/cases/**,/api/kb/**,/api/stream/**,/api/auth/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@userKeyResolver}"
+                    redis-rate-limiter.replenishRate: 100
+                    redis-rate-limiter.burstCapacity: 200
+
+server:
+  port: ${PORT:8080}
+
+fraudshield:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production-this-is-a-32+-byte-dev-secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway
+  endpoint:
+    health:
+      probes:
+        enabled: true

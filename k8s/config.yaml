@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fraudshield-config
+data:
+  REDIS_HOST: redis
+  KAFKA_BOOTSTRAP: kafka:9092
+  DB_HOST: postgres
+  RISK_ENGINE_URL: http://risk-engine:8082
+  TXN_SERVICE_URL: http://txn-service:8081
+  CASE_SERVICE_URL: http://case-service:8083
+  AI_PROVIDER: none
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
+---
+# Demo values only. In a real cluster these come from a secret manager
+# (External Secrets Operator, Sealed Secrets, or the cloud provider's CSI driver).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fraudshield-secrets
+type: Opaque
+stringData:
+  JWT_SECRET: change-me-in-production-this-is-a-32+-byte-dev-secret
+  DB_USER: fraudshield
+  DB_PASSWORD: fraudshield
+  AI_API_KEY: ""

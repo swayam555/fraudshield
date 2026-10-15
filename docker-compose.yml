@@ -1,0 +1,128 @@
+# Full stack:  docker compose up --build   then open http://localhost:3001
+# Optional AI: set AI_PROVIDER / AI_API_KEY / AI_MODEL in a .env file (see .env.example).
+
+x-java: &java
+  restart: unless-stopped
+  environment: &java-env
+    REDIS_HOST: redis
+    KAFKA_BOOTSTRAP: kafka:9092
+    DB_HOST: postgres
+    JWT_SECRET: ${JWT_SECRET:-change-me-in-production-this-is-a-32+-byte-dev-secret}
+    RISK_ENGINE_URL: http://risk-engine:8082
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    kafka: { condition: service_healthy }
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: fraudshield
+      POSTGRES_PASSWORD: fraudshield
+      POSTGRES_DB: fraudshield
+    volumes:
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraudshield"]
+      interval: 5s
+      retries: 20
+    mem_limit: 256m
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "volatile-lru", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+    mem_limit: 192m
+
+  kafka:
+    image: apache/kafka:3.9.2
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_HEAP_OPTS: "-Xmx320m -Xms320m"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      retries: 20
+    mem_limit: 640m
+
+  risk-engine:
+    <<: *java
+    build: { context: ., target: risk-engine }
+    image: fraudshield/risk-engine:1.0.0
+    healthcheck: &health
+      test: ["CMD", "curl", "-fs", "http://localhost:8082/actuator/health/readiness"]
+      interval: 10s
+      retries: 30
+      start_period: 30s
+    mem_limit: 400m
+
+  txn-service:
+    <<: *java
+    build: { context: ., target: txn-service }
+    image: fraudshield/txn-service:1.0.0
+    environment:
+      <<: *java-env
+      DB_NAME: txn
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fs", "http://localhost:8081/actuator/health/readiness"]
+    mem_limit: 512m
+
+  case-service:
+    <<: *java
+    build: { context: ., target: case-service }
+    image: fraudshield/case-service:1.0.0
+    environment:
+      <<: *java-env
+      DB_NAME: cases
+      AI_PROVIDER: ${AI_PROVIDER:-none}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_TIMEOUT: ${AI_TIMEOUT:-60s}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fs", "http://localhost:8083/actuator/health/readiness"]
+    mem_limit: 1024m
+
+  gateway:
+    <<: *java
+    build: { context: ., target: gateway }
+    image: fraudshield/gateway:1.0.0
+    environment:
+      <<: *java-env
+      TXN_SERVICE_URL: http://txn-service:8081
+      CASE_SERVICE_URL: http://case-service:8083
+    depends_on:
+      redis: { condition: service_healthy }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/actuator/health/readiness"]
+    ports: ["8081:8080"]
+    mem_limit: 384m
+
+  frontend:
+    build: ./frontend
+    image: fraudshield/frontend:1.0.0
+    restart: unless-stopped
+    depends_on: [gateway]
+    ports: ["3001:80"]
+    mem_limit: 64m
+
+volumes:
+  pgdata:

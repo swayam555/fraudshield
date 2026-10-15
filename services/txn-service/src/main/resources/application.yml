@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: txn-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:txn}
+    username: ${DB_USER:fraudshield}
+    password: ${DB_PASSWORD:fraudshield}
+    hikari:
+      maximum-pool-size: 20
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      compression-type: lz4
+      properties:
+        enable.idempotence: true
+        linger.ms: 10
+
+server:
+  port: ${PORT:8081}
+  shutdown: graceful
+
+risk-client:
+  base-url: ${RISK_ENGINE_URL:http://localhost:8082}
+  timeout: 300ms
+  fail-open-limit: 2000
+
+springdoc:
+  api-docs:
+    path: /api/payments/openapi
+  swagger-ui:
+    path: /api/payments/docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics,circuitbreakers
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
